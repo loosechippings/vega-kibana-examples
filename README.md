@@ -14,4 +14,4 @@ Start Kibana:
 
 `docker run -d --rm --name kibana --net elastic -p 5601:5601 kibana:7.0.1`
 
-Create a new Vega visualisation in Kibana and copy-paste in the example code.
+Create a new Vega visualisation in Kibana and copy-paste in the example code. Set the time picker to 'This month'.
