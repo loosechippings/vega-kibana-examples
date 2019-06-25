@@ -1,0 +1,152 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v3.2.json",
+  "data": [
+    {
+      "name": "foo",
+      "url": {
+        "%context%": true,
+        "index": "kibana_sample_data_ecommerce",
+        "body": {
+          "aggs": {
+            "cont": {
+              "terms": {
+                "field": "geoip.continent_name"
+              },
+              "aggs": {
+                "dates": {
+                  "date_histogram": {
+                    "field": "order_date",
+                    "interval": "day"
+                  },
+                  "aggs": {
+                    "docs": {
+                      "value_count": {
+                        "field": "order_id"
+                      }
+                    }
+                  }
+                },
+                "stats_daily_docs": {
+                  "percentiles_bucket": {
+                    "buckets_path": "dates>docs"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "size": 0
+      },
+      "format": {"property": "aggregations.cont.buckets"},
+      "transform": [
+        {"type": "project", "fields": ["key", "stats_daily_docs.values"], "as": ["key", "values"]}
+      ]
+    },
+    {
+      "name": "qty",
+      "url": {
+        "%context%": true,
+        "index": "kibana_sample_data_ecommerce",
+        "body": {
+          "aggs": {
+            "qty-cont": {
+              "terms": {
+                "field": "geoip.continent_name"
+              },
+              "aggs": {
+                "qty": {
+                  "sum": {
+                    "field": "total_quantity"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "size": 0
+      },
+      "format": {"property": "aggregations.qty-cont.buckets"},
+      "transform": [
+        {"type": "project", "fields": ["key", "qty.value"], "as": ["key", "qty"]}
+      ]
+    },
+    {
+      "name": "test",
+      "source": "qty",
+      "transform": [
+        {
+          "type": "extent",
+          "field": "qty",
+          "signal": "qtyextent"
+        },
+        {
+          "type": "aggregate",
+          "fields": ["qty"],
+          "ops": ["sum"],
+          "as": ["s"]
+        }
+      ]
+    }
+  ],
+  "signals": [
+    {"name": "total", "update": "data('test')[0].s"},
+    {"name": "range", "update": "data('qty')"}
+  ],
+  "scales": [
+    {"name": "xscale", "type": "band", "domain": {"data": "foo", "field": "key"}, "range": [0, {"signal": "width"}], "padding": 0.2},
+    {"name": "yscale", "type": "linear", "domain": {"data": "foo", "field": "values['99.0']"}, "range": [{"signal": "height"}, 0]},
+    {"name": "qtyscale", "type": "linear", "domain": [0,{"signal": "qtyextent[1] / total * 100"}], "range": [{"signal": "height"}, 0]}
+  ],
+  "axes": [
+    {"orient": "bottom", "scale": "xscale"},
+    {"orient": "left", "scale": "yscale"},
+    {"orient": "right", "scale": "qtyscale"}
+  ],
+  "marks": [
+    {
+      "type": "rect",
+      "from": {"data": "foo"},
+      "encode": {
+        "enter": {
+          "xc": {"scale": "xscale", "field": "key", "band": 0.5},
+          "width": {"scale": "xscale", "band": 0.01},
+          "y": {"scale": "yscale", "field": "values['5.0']"},
+          "y2": {"scale": "yscale", "field": "values['95.0']"},
+          "fill": {"value": "black"}
+        }
+      }
+    },
+    {
+      "type": "rect",
+      "from": {"data": "foo"},
+      "encode": {
+        "enter": {
+          "xc": {"scale": "xscale", "field": "key", "band": 0.5},
+          "width": {"scale": "xscale", "band": 0.2},
+          "y": {"scale": "yscale", "field": "values['25.0']"},
+          "y2": {"scale": "yscale", "field": "values['75.0']"},
+          "fill": {"value": "steelblue"},
+          "tooltip": {"signal": "{title: datum.values['25.0'] + ' to ' + datum.values['75.0']}"}
+        },
+        "hover": {
+          "fill": {"value": "red"}
+        },
+        "update": {
+          "fill": {"value": "steelblue"}
+        }
+      }
+    },
+    {
+      "type": "symbol",
+      "from": {"data": "qty"},
+      "encode": {
+        "enter": {
+          "shape": {"value": "diamond"},
+          "x": {"scale": "xscale", "field": "key", "band": 0.5},
+          "y": {"signal": "scale('qtyscale', datum.qty / total * 100)"},
+          "fill": {"value": "red"}
+        }
+      }
+    }
+  ]
+ }

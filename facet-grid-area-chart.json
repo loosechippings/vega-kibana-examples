@@ -1,0 +1,148 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v3.2.json",
+  "data": [
+    {
+      "name": "foo",
+      "url": {
+        "%timefield%": "order_date",
+        "%context%": true,
+        "index": "kibana_sample_data_ecommerce",
+        "body": {
+            "aggs": {
+              "date": {
+                "date_histogram": {
+                  "field": "order_date",
+                  "interval": "day"
+                },
+                "aggs": {
+                  "gender": {
+                    "terms": {"field": "customer_gender"},
+                    "aggs": {
+                      "cont": {
+                        "terms": {"field": "geoip.continent_name"},
+                        "aggs": {
+                          "total": {
+                            "sum": {"field": "taxful_total_price"}
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+      "format": {"property": "aggregations.date.buckets"},
+      "transform": [
+        {"type": "flatten", "fields": ["gender.buckets"], "as": ["foo"]},
+        {"type": "flatten", "fields": ["foo.cont.buckets"], "as": ["bar"]},
+        {"type": "project", "fields": ["bar.key", "foo.key", "bar.total.value", "key"], "as": ["continent", "gender", "value", "orderdate"]}
+      ],
+      "size": 0
+    },
+    {
+      "name": "gender",
+      "source": "foo",
+      "transform": [
+        {
+          "type": "aggregate",
+          "groupby": ["gender"]
+        }
+      ]
+    },
+    {
+      "name": "continent",
+      "source": "foo",
+      "transform": [
+        {
+            "type": "aggregate",
+          "groupby": ["continent"]
+        }
+      ]
+    }
+  ],
+  "signals": [
+    {"name": "pad", "value": "5"},
+    {"name": "w", "value": 800},
+    {"name": "h", "value": 500},
+  ],
+  "scales": [
+    {"name": "genderScale", "type": "band", "domain": {"data": "foo", "field": "gender"}, "range": [0, {"signal": "width"}]},
+    {"name": "continentScale", "type": "band", "domain": {"data": "foo", "field": "continent"}, "range": [{"signal": "height"}, 0]},
+    {"name": "xscale", "type": "time", "domain": {"data": "foo", "field": "orderdate"}, "range": [0, {"signal": "bandwidth('genderScale')"}]},
+    {"name": "yscale", "type": "linear", "domain": {"data": "foo", "field": "value"}, "range": [{"signal": "bandwidth('continentScale')"}, 0]}
+  ],
+  "axes": [
+  ],
+  "layout": {"padding": 5, "bounds": "full", "align": "all", "columns": {"signal": "length(data('gender'))"}},
+  "marks": [
+    {
+      "type": "group",
+      "name": "header",
+      "role": "column-footer",
+      "from": {"data": "gender"},
+      "encode": {
+        "enter": {
+          "width": {"signal": "bandwidth('genderScale')"}
+        }
+      },
+      "axes": [
+        {"scale": "xscale", "orient": "bottom", "labelOverlap": "true"}
+      ]
+    },
+    {
+      "type": "group",
+      "name": "rowheader",
+      "role": "row-header",
+      "from": {"data": "continent"},
+      "encode": {
+        "enter": {
+          "height": {"signal": "bandwidth('continentScale')"}
+        }
+      },
+      "axes": [
+        {"scale": "yscale", "orient": "left", "labelOverlap": "true", "grid": true}
+      ]
+    },
+    {
+      "type": "group",
+      "sort": {"field": "datum.continent"}
+      "from": {
+          "facet": {
+          "name": "g",
+          "data": "foo",
+          "groupby": ["gender", "continent"]
+        }
+      },
+      "title": {"text": {"signal": "parent['gender'] + ' - '+ parent['continent']"}, "style": "guide-label"},
+      "encode": {
+        "enter": {
+          "width": {"signal": "bandwidth('genderScale')"},
+          "height": {"signal": "bandwidth('continentScale')"}
+        }
+      },
+      "signals": [
+      ],
+      "scales": [
+      ],
+      "axes": [
+      ],
+      "marks": [
+        {
+          "type": "area",
+          "sort": {"field": "continent"},
+          "from": {"data": "g"},
+          "encode": {
+            "enter": {
+              "fill": {"value": "steelblue"},
+              "x": {"scale": "xscale", "field": "orderdate"},
+              "y": {"scale": "yscale", "field": "value"},
+              "y2": {"signal": "bandwidth('continentScale')"}
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
